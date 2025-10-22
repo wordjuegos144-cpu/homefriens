@@ -263,6 +263,14 @@ class ReservaResource extends Resource
                     ->required(),
                 Forms\Components\TextInput::make('costoPorNoche')->label('Costo por Noche')->numeric()->required()
                     ->reactive(),
+                Forms\Components\Placeholder::make('totalBruto')
+                    ->label('Total Bruto')
+                    ->content(function (callable $get) {
+                        $costoPorNoche = $get('costoPorNoche');
+                        $cantidadNoches = $get('cantidadNoches');
+                        $total = ($costoPorNoche ?? 0) * ($cantidadNoches ?? 0);
+                        return 'Bs ' . number_format($total, 2, ',', '.');
+                    }),
                 Forms\Components\TextInput::make('montoLimpieza')->label('Monto Limpieza')->numeric()->required()
                     ->reactive(),
                 Forms\Components\TextInput::make('montoGarantia')
@@ -270,6 +278,7 @@ class ReservaResource extends Resource
                     ->numeric()
                     ->reactive()
                     ->default(0),
+
                 Forms\Components\Placeholder::make('comisionCanal')
                     ->label('Comisión Canal')
                     ->content(function (callable $get) {
@@ -278,7 +287,7 @@ class ReservaResource extends Resource
                         $cantidadNoches = $get('cantidadNoches');
                         return \App\Services\ReservaService::calcularComisionCanal($canalId, $costoPorNoche, $cantidadNoches);
                     }),
-                Forms\Components\Hidden::make('comisionCanal')->dehydrated(),
+                Forms\Components\Hidden::make('comisionCanal'),
                 Forms\Components\Placeholder::make('montoReserva')
                     ->label('Monto Reserva')
                     ->content(function (callable $get) {
@@ -287,7 +296,7 @@ class ReservaResource extends Resource
                         $comision = \App\Services\ReservaService::calcularComisionCanal($get('idCanalReserva'), $costoPorNoche, $cantidadNoches);
                         return \App\Services\ReservaService::calcularMontoReserva($costoPorNoche, $cantidadNoches, $comision);
                     }),
-                Forms\Components\Hidden::make('montoReserva')->dehydrated(),
+                Forms\Components\Hidden::make('montoReserva'),
                 Forms\Components\Placeholder::make('totalAPagar')
                     ->label('Total a Pagar')
                     ->content(function (callable $get) {
@@ -295,9 +304,10 @@ class ReservaResource extends Resource
                         $cantidadNoches = $get('cantidadNoches');
                         $montoLimpieza = $get('montoLimpieza');
                         $montoGarantia = $get('montoGarantia');
-                        return \App\Services\ReservaService::calcularTotalAPagar($costoPorNoche, $cantidadNoches, $montoLimpieza, $montoGarantia);
+                        $total = \App\Services\ReservaService::calcularTotalAPagar($costoPorNoche, $cantidadNoches, $montoLimpieza, $montoGarantia);
+                        return $total;
                     }),
-                Forms\Components\Hidden::make('totalAPagar')->dehydrated(),
+                Forms\Components\Hidden::make('totalAPagar'),
                 Forms\Components\Placeholder::make('montoEmpresaAdministradora')
                     ->label('Monto Empresa Administradora')
                     ->content(function (callable $get) {
@@ -309,7 +319,7 @@ class ReservaResource extends Resource
                         $montoReserva = \App\Services\ReservaService::calcularMontoReserva($costoPorNoche, $cantidadNoches, $comision);
                         return \App\Services\ReservaService::calcularMontoEmpresaAdministradora($idDepartamento, $fechaReserva, $montoReserva);
                     }),
-                Forms\Components\Hidden::make('montoEmpresaAdministradora')->dehydrated(),
+                Forms\Components\Hidden::make('montoEmpresaAdministradora'),
                 Forms\Components\Placeholder::make('montoPropietario')
                     ->label('Monto Propietario')
                     ->content(function (callable $get) {
@@ -321,7 +331,7 @@ class ReservaResource extends Resource
                         $montoReserva = \App\Services\ReservaService::calcularMontoReserva($costoPorNoche, $cantidadNoches, $comision);
                         return \App\Services\ReservaService::calcularMontoPropietario($idDepartamento, $fechaReserva, $montoReserva);
                     }),
-                Forms\Components\Hidden::make('montoPropietario')->dehydrated(),
+                Forms\Components\Hidden::make('montoPropietario'),
                 Forms\Components\TextInput::make('cantidadHuespedes')
                     ->label('Cantidad de Huéspedes')
                     ->numeric()
@@ -355,8 +365,14 @@ class ReservaResource extends Resource
                 Tables\Columns\TextColumn::make('costoPorNoche')->label('Costo Noche'),
                 Tables\Columns\TextColumn::make('cantidadHuespedes')->label('Cant. Huéspedes'),
                 Tables\Columns\TextColumn::make('cantidadNoches')->label('Cant. Noches'),
-                Tables\Columns\TextColumn::make('descuentoAplicado')->label('Descuento'),
                 Tables\Columns\TextColumn::make('comisionCanal')->label('Comisión Canal'),
+                Tables\Columns\TextColumn::make('totalBruto')
+                    ->label('Total Bruto')
+                    ->getStateUsing(function($record) {
+                        $costoPorNoche = floatval($record->costoPorNoche ?? 0);
+                        $cantidadNoches = intval($record->cantidadNoches ?? 0);
+                        return number_format($costoPorNoche * $cantidadNoches, 0, ',', '.');
+                    }),
                 Tables\Columns\TextColumn::make('montoReserva')->label('Monto Reserva'),
                 Tables\Columns\TextColumn::make('montoLimpieza')->label('Monto Limpieza'),
                 Tables\Columns\TextColumn::make('montoGarantia')->label('Monto Garantía'),
@@ -365,11 +381,63 @@ class ReservaResource extends Resource
             ])
             ->filters([
                 SelectFilter::make('estado')
-                ->options([
-                    'Confirmada' => 'Confirmada',
-                    'Cancelada' => 'Cancelada',
-                    'Pendiente' => 'Pendiente',
-                ]),
+                    ->options([
+                        'Confirmada' => 'Confirmada',
+                        'Cancelada' => 'Cancelada',
+                        'Pendiente' => 'Pendiente',
+                    ]),
+                Tables\Filters\Filter::make('fecha_rango')
+                    ->form([
+                        Forms\Components\DatePicker::make('fecha_inicio')->label('Desde'),
+                        Forms\Components\DatePicker::make('fecha_fin')->label('Hasta'),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['fecha_inicio'])) {
+                            $query->where('fechaInicio', '>=', $data['fecha_inicio']);
+                        }
+                        if (!empty($data['fecha_fin'])) {
+                            $query->where('fechaFin', '<=', $data['fecha_fin']);
+                        }
+                    }),
+                SelectFilter::make('idDepartamento')
+                    ->label('Departamento')
+                    ->relationship('departamento', 'nombreEdificio'),
+            ])
+            ->headerActions([
+                Tables\Actions\Action::make('exportarPagosPropietario')
+                    ->label('Exportar pagos a propietario')
+                    ->form([
+                        Forms\Components\DatePicker::make('fecha_inicio')->label('Desde')->required(),
+                        Forms\Components\DatePicker::make('fecha_fin')->label('Hasta')->required(),
+                        Forms\Components\Select::make('departamento_id')
+                            ->label('Departamento')
+                            ->options(\App\Models\Departamento::all()->pluck('nombreEdificio', 'id')),
+                        Forms\Components\Select::make('formato')
+                            ->label('Formato')
+                            ->options([
+                                'xlsx' => 'Excel',
+                                'csv' => 'CSV',
+                            ])->default('xlsx')->required(),
+                    ])
+                    ->action(function (array $data) {
+                        $query = \App\Models\Reserva::query();
+                        $query->where('fechaInicio', '>=', $data['fecha_inicio']);
+                        $query->where('fechaFin', '<=', $data['fecha_fin']);
+                        if (!empty($data['departamento_id'])) {
+                            $query->where('idDepartamento', $data['departamento_id']);
+                        }
+                        // Eager-load departamento.propietario, huesped and last pago to avoid N+1
+                        $reservas = $query->with([
+                            'departamento.propietario',
+                            'huesped',
+                            'pagos' => function($q) { $q->orderBy('created_at', 'desc')->limit(1); },
+                        ])->get();
+                        $export = new \App\Exports\ReservasPropietarioExport($reservas);
+                        $filename = 'pagos_propietario_' . now()->format('Ymd_His') . '.' . $data['formato'];
+                        return \Maatwebsite\Excel\Facades\Excel::download($export, $filename);
+                    })
+                    ->color('success')
+                    ->icon('heroicon-o-arrow-down-tray'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
@@ -415,24 +483,52 @@ class ReservaResource extends Resource
             $data['montoGarantia'] = 0;
         }
         // Forzar tipos y valores por defecto
+        // Normalizar números: remover separadores de miles y convertir comas a punto para parseo correcto
+        $normalizeNumber = function ($value) {
+            if (is_null($value) || $value === '') return 0;
+            if (is_string($value)) {
+                // Eliminar espacios y separadores de miles comunes (puntos y espacios)
+                $v = str_replace(['.', ' '], '', $value);
+                // Reemplazar coma decimal por punto
+                $v = str_replace(',', '.', $v);
+                return is_numeric($v) ? $v : 0;
+            }
+            return $value;
+        };
+
         $data['idDepartamento'] = (int) $data['idDepartamento'];
         $data['idHuesped'] = (int) $data['idHuesped'];
         $data['idCanalReserva'] = (int) $data['idCanalReserva'];
-        $data['costoPorNoche'] = (float) $data['costoPorNoche'];
-        $data['montoLimpieza'] = (float) $data['montoLimpieza'];
-        $data['montoGarantia'] = (float) $data['montoGarantia'];
-        $data['cantidadNoches'] = (int) $data['cantidadNoches'];
-        $data['cantidadHuespedes'] = isset($data['cantidadHuespedes']) && $data['cantidadHuespedes'] !== '' && $data['cantidadHuespedes'] !== null ? (int) $data['cantidadHuespedes'] : 1;
-        $data['descuentoAplicado'] = isset($data['descuentoAplicado']) ? (float) $data['descuentoAplicado'] : 0;
+        $data['costoPorNoche'] = (float) $normalizeNumber($data['costoPorNoche'] ?? 0);
+        $data['montoLimpieza'] = (float) $normalizeNumber($data['montoLimpieza'] ?? 0);
+        $data['montoGarantia'] = (float) $normalizeNumber($data['montoGarantia'] ?? 0);
+        $data['cantidadNoches'] = (int) $normalizeNumber($data['cantidadNoches'] ?? 0);
+        $data['cantidadHuespedes'] = isset($data['cantidadHuespedes']) && $data['cantidadHuespedes'] !== '' && $data['cantidadHuespedes'] !== null ? (int) $normalizeNumber($data['cantidadHuespedes']) : 1;
         // Eliminar lógica de overbooking
         $data['estado'] = $data['estado'] ?? 'Confirmada';
         $data['fechaInicio'] = $data['fechaInicio'] ?? now();
         $data['fechaFin'] = $data['fechaFin'] ?? now();
 
         // Cálculos robustos (nunca null)
-        $data['comisionCanal'] = (float) (\App\Services\ReservaService::calcularComisionCanal($data['idCanalReserva'], $data['costoPorNoche'], $data['cantidadNoches']) ?? 0);
+        $calculatedComision = (float) (\App\Services\ReservaService::calcularComisionCanal($data['idCanalReserva'], $data['costoPorNoche'], $data['cantidadNoches']) ?? 0);
+
+        // Log temporal para depuración: si la comisión es 0 registramos inputs para investigar
+        if ($calculatedComision == 0) {
+            try {
+                \Illuminate\Support\Facades\Log::info('ReservaResource::mutateFormDataBeforeCreate - comisionCanal=0', [
+                    'idCanalReserva' => $data['idCanalReserva'] ?? null,
+                    'costoPorNoche' => $data['costoPorNoche'] ?? null,
+                    'cantidadNoches' => $data['cantidadNoches'] ?? null,
+                    'canal' => isset($data['idCanalReserva']) ? \App\Models\CanalReserva::find($data['idCanalReserva'])?->toArray() : null,
+                ]);
+            } catch (\Throwable $e) {
+                // no bloquear el guardado por logging
+            }
+        }
+        $data['comisionCanal'] = $calculatedComision;
         $data['montoReserva'] = (float) (\App\Services\ReservaService::calcularMontoReserva($data['costoPorNoche'], $data['cantidadNoches'], $data['comisionCanal']) ?? 0);
-        $data['totalAPagar'] = (float) (\App\Services\ReservaService::calcularTotalAPagar($data['costoPorNoche'], $data['cantidadNoches'], $data['montoLimpieza'], $data['montoGarantia']) ?? 0);
+    // The database schema for `reservas` doesn't include `totalAPagar`, so we don't set it here
+    // to avoid Eloquent attempting to insert a non-existent column.
         $data['montoEmpresaAdministradora'] = (float) (\App\Services\ReservaService::calcularMontoEmpresaAdministradora($data['idDepartamento'], $data['fechaInicio'], $data['montoReserva']) ?? 0);
         $data['montoPropietario'] = (float) (\App\Services\ReservaService::calcularMontoPropietario($data['idDepartamento'], $data['fechaInicio'], $data['montoReserva']) ?? 0);
 

@@ -14,13 +14,14 @@ return new class extends Migration
         Schema::create('departamentos', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('idEmpresaAdministradora');
+            // FK to propietarios (nullable)
+            $table->foreignId('idPropietario')->nullable();
             $table->string('nombreEdificio', 100);
             $table->string('direccion', 255);
             $table->smallInteger('piso')->nullable();
             $table->integer('numero')->nullable();
             $table->integer('capacidadNormal');
             $table->integer('capacidadExtra');
-            $table->string('nombrePropietario', 100);
             $table->string('telefonoPropietario', 100);
             $table->timestamps();
 
@@ -28,6 +29,10 @@ return new class extends Migration
                 ->references('id')
                 ->on('empresa_administradoras')
                 ->onDelete('cascade');
+            $table->foreign('idPropietario')
+                ->references('id')
+                ->on('propietarios')
+                ->onDelete('set null');
         });
     }
 
@@ -36,6 +41,9 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('departamentos');
+         Schema::table('departamentos', function (Blueprint $table) {
+            $table->dropForeign(['idPropietario']);
+            $table->dropColumn('idPropietario');
+        });
     }
 };

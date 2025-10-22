@@ -32,8 +32,8 @@ class ReservaService
         if (!$canal || !$canal->comision) {
             return 0;
         }
-        $total = $costoPorNoche * $cantidadNoches;
-        $comision = ($total * $canal->comision) / 100;
+    $total = (float) $costoPorNoche * (float) $cantidadNoches;
+    $comision = ($total * (float) $canal->comision) / 100;
         return round($comision, 2);
     }
 
@@ -45,7 +45,7 @@ class ReservaService
         if (!$costoPorNoche || !$cantidadNoches) {
             return 0;
         }
-        $total = $costoPorNoche * $cantidadNoches;
+    $total = (float) $costoPorNoche * (float) $cantidadNoches;
         return $total - ($comision ?? 0);
     }
 
@@ -65,8 +65,8 @@ class ReservaService
         if (!$contrato || !$contrato->comisionContrato) {
             return $montoReserva;
         }
-        $comision = ($montoReserva * $contrato->comisionContrato) / 100;
-        return round($comision, 2);
+    $comision = ((float) $montoReserva * (float) $contrato->comisionContrato) / 100;
+    return round($comision, 2);
     }
 
     /**
@@ -82,8 +82,8 @@ class ReservaService
             ->where('fechaInicioContrato', '<=', $fechaReserva)
             ->where('fechaFinContrato', '>=', $fechaReserva)
             ->first();
-        $comision = ($contrato && $contrato->comisionContrato) ? ($montoReserva * $contrato->comisionContrato) / 100 : 0;
-        $monto = $montoReserva - $comision;
+    $comision = ($contrato && $contrato->comisionContrato) ? ((float) $montoReserva * (float) $contrato->comisionContrato) / 100 : 0;
+    $monto = (float) $montoReserva - $comision;
         return round($monto, 2);
     }
 
@@ -92,8 +92,8 @@ class ReservaService
      */
     public static function calcularTotalAPagar($costoPorNoche, $cantidadNoches, $montoLimpieza, $montoGarantia)
     {
-        $total = ($costoPorNoche ?? 0) * ($cantidadNoches ?? 0);
-        $total += ($montoLimpieza ?? 0) + ($montoGarantia ?? 0);
+    $total = (float) ($costoPorNoche ?? 0) * (float) ($cantidadNoches ?? 0);
+    $total += (float) ($montoLimpieza ?? 0) + (float) ($montoGarantia ?? 0);
         return round($total, 2);
     }
 

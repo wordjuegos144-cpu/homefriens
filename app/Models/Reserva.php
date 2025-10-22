@@ -31,14 +31,70 @@ class Reserva extends Model
 
     protected static function booted()
     {
+        // Ensure computed monetary fields are populated for any create path
+        static::creating(function ($reserva) {
+            // Normalize basic numeric fields to avoid string arithmetic issues
+            $reserva->costoPorNoche = isset($reserva->costoPorNoche) ? (float) $reserva->costoPorNoche : 0;
+            $reserva->cantidadNoches = isset($reserva->cantidadNoches) ? (int) $reserva->cantidadNoches : 0;
+            $reserva->montoLimpieza = isset($reserva->montoLimpieza) ? (float) $reserva->montoLimpieza : 0;
+            $reserva->montoGarantia = isset($reserva->montoGarantia) ? (float) $reserva->montoGarantia : 0;
+
+            // Compute commission and derived amounts when missing or zero
+            try {
+                if (empty($reserva->comisionCanal) || $reserva->comisionCanal == 0) {
+                    $reserva->comisionCanal = \App\Services\ReservaService::calcularComisionCanal(
+                        $reserva->idCanalReserva,
+                        $reserva->costoPorNoche,
+                        $reserva->cantidadNoches
+                    );
+                }
+
+                if (empty($reserva->montoReserva) || $reserva->montoReserva == 0) {
+                    $reserva->montoReserva = \App\Services\ReservaService::calcularMontoReserva(
+                        $reserva->costoPorNoche,
+                        $reserva->cantidadNoches,
+                        $reserva->comisionCanal
+                    );
+                }
+
+                // Note: the DB schema does not include a `totalAPagar` column. We avoid setting
+                // that attribute here to prevent SQLite "no column named totalAPagar" errors.
+
+                if (empty($reserva->montoEmpresaAdministradora) || $reserva->montoEmpresaAdministradora == 0) {
+                    $reserva->montoEmpresaAdministradora = \App\Services\ReservaService::calcularMontoEmpresaAdministradora(
+                        $reserva->idDepartamento,
+                        $reserva->fechaInicio,
+                        $reserva->montoReserva
+                    );
+                }
+
+                if (empty($reserva->montoPropietario) || $reserva->montoPropietario == 0) {
+                    $reserva->montoPropietario = \App\Services\ReservaService::calcularMontoPropietario(
+                        $reserva->idDepartamento,
+                        $reserva->fechaInicio,
+                        $reserva->montoReserva
+                    );
+                }
+            } catch (\Throwable $e) {
+                // Don't prevent creation due to calculation errors; log for later inspection
+                try {
+                    \Illuminate\Support\Facades\Log::error('Reserva creating hook failed to calculate amounts', [
+                        'reserva_id' => $reserva->id ?? null,
+                        'error' => $e->getMessage(),
+                    ]);
+                } catch (\Throwable $_) {
+                    // ignore logging failures
+                }
+            }
+        });
         static::created(function ($reserva) {
             if ($reserva->estado === 'Confirmada') {
                 \App\Models\Limpieza::create([
                     'reserva_id' => $reserva->id,
                     'fecha_programada' => $reserva->fechaFin,
-                    'hora_programada' => null,
+                    'hora_programada' => '14:00:00',
                     'monto' => $reserva->montoLimpieza,
-                    'estado' => 'Programada',
+                    'estado' => 'Pendiente',
                 ]);
 
                 // Registro de Pago: Garantía
@@ -78,9 +134,9 @@ class Reserva extends Model
                         \App\Models\Limpieza::create([
                             'reserva_id' => $reserva->id,
                             'fecha_programada' => $reserva->fechaFin,
-                            'hora_programada' => null,
+                            'hora_programada' => '14:00:00',
                             'monto' => $reserva->montoLimpieza,
-                            'estado' => 'Programada',
+                            'estado' => 'Pendiente',
                         ]);
                     } elseif ($limpieza->estado === 'Cancelada') {
                         $limpieza->estado = 'Programada';
@@ -103,4 +159,17 @@ class Reserva extends Model
     public function canalReserva() {
         return $this->belongsTo(CanalReserva::class, 'idCanalReserva');
     }
+    
+    // Relación con la limpieza asociada a la reserva (si existe)
+    public function limpieza()
+    {
+        return $this->hasOne(Limpieza::class, 'reserva_id');
+    }
+
+    // Pagos asociados a la reserva
+    public function pagos()
+    {
+        return $this->hasMany(\App\Models\Pago::class, 'idReserva');
+    }
 }
+

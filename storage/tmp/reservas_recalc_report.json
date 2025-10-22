@@ -1,0 +1,80 @@
+[
+    {
+        "id": 4,
+        "fecha_creacion": "2025-10-20 18:18:56",
+        "idCanalReserva": 2,
+        "canal": {
+            "id": 2,
+            "nombre": "airbnb",
+            "comision": 40
+        },
+        "costoPorNoche": 400,
+        "cantidadNoches": 3,
+        "old": {
+            "comisionCanal": 0,
+            "montoReserva": 0,
+            "totalAPagar": null,
+            "montoEmpresaAdministradora": 0,
+            "montoPropietario": 0
+        },
+        "calculated": {
+            "comisionCanal": 480,
+            "montoReserva": 720,
+            "totalAPagar": 1650,
+            "montoEmpresaAdministradora": 720,
+            "montoPropietario": 720
+        }
+    },
+    {
+        "id": 5,
+        "fecha_creacion": "2025-10-20 18:23:15",
+        "idCanalReserva": 2,
+        "canal": {
+            "id": 2,
+            "nombre": "airbnb",
+            "comision": 40
+        },
+        "costoPorNoche": 400,
+        "cantidadNoches": 3,
+        "old": {
+            "comisionCanal": 0,
+            "montoReserva": 0,
+            "totalAPagar": null,
+            "montoEmpresaAdministradora": 0,
+            "montoPropietario": 0
+        },
+        "calculated": {
+            "comisionCanal": 480,
+            "montoReserva": 720,
+            "totalAPagar": 1800,
+            "montoEmpresaAdministradora": 720,
+            "montoPropietario": 720
+        }
+    },
+    {
+        "id": 7,
+        "fecha_creacion": "2025-10-21 14:19:27",
+        "idCanalReserva": 2,
+        "canal": {
+            "id": 2,
+            "nombre": "airbnb",
+            "comision": 40
+        },
+        "costoPorNoche": 350,
+        "cantidadNoches": 3,
+        "old": {
+            "comisionCanal": 0,
+            "montoReserva": 0,
+            "totalAPagar": null,
+            "montoEmpresaAdministradora": 0,
+            "montoPropietario": 0
+        },
+        "calculated": {
+            "comisionCanal": 420,
+            "montoReserva": 630,
+            "totalAPagar": 1900,
+            "montoEmpresaAdministradora": 630,
+            "montoPropietario": 630
+        }
+    }
+]

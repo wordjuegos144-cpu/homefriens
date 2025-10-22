@@ -12,18 +12,40 @@ class Departamento extends Model
 
     protected $fillable = [
         'idEmpresaAdministradora',
+        'idPropietario',
         'nombreEdificio',
         'direccion',
+        'descripcion',
         'piso',
         'numero',
         'capacidadNormal',
         'capacidadExtra',
-        'nombrePropietario',
         'telefonoPropietario',
+        'camas',
+        'cuartos',
+        'banos',
+        'imagenes',
+        'servicios',
+    ];
+
+    public function getGoogleMapsUrlAttribute()
+    {
+        return $this->direccion
+            ? "https://www.google.com/maps/search/?api=1&query=" . urlencode($this->direccion)
+            : null;
+    }
+
+    protected $casts = [
+        'imagenes' => 'array',
+        'servicios' => 'array',
     ];
 
     public function empresaAdministradora()
     {
         return $this->belongsTo(EmpresaAdministradora::class, 'idEmpresaAdministradora');
+    }
+    public function propietario()
+    {
+        return $this->belongsTo(Propietario::class, 'idPropietario');
     }
 }

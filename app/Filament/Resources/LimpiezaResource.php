@@ -71,7 +71,7 @@ class LimpiezaResource extends Resource
                     })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('fecha_programada')->date()->label('Fecha'),
-                Tables\Columns\TextColumn::make('hora_programada')->label('Hora'),
+                Tables\Columns\TextColumn::make('hora_programada')->time()->label('Hora'),
                 Tables\Columns\TextColumn::make('monto')->money('USD'),
                 Tables\Columns\TextColumn::make('estado')
                     ->badge()

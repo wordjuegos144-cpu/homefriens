@@ -13,15 +13,8 @@ class CreateReserva extends CreateRecord
     protected function afterCreate(): void
     {
         $reserva = $this->record;
-        \App\Models\Limpieza::create([
-            'reserva_id' => $reserva->id,
-            'fecha_programada' => $reserva->fechaFin,
-            'hora_programada' => '14:00:00',
-            'monto' => $reserva->montoLimpieza,
-            'estado' => 'Pendiente',
-        ]);
-
-        // Si se registra un valor en garantía, crear devolución vinculada
+        
+        // Solo crear devolución si hay garantía (la limpieza se crea automáticamente en el modelo)
         if ($reserva->montoGarantia > 0) {
             \App\Models\Devolucion::create([
                 'idReserva' => $reserva->id,
