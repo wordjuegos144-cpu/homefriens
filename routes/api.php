@@ -22,3 +22,6 @@ Route::get('departamentos/{id}', [ApartmentController::class, 'show']);
 // Alias en inglés (opcional)
 Route::get('apartments',      [ApartmentController::class, 'index']);
 Route::get('apartments/{id}', [ApartmentController::class, 'show']);
+
+// Ganancias por departamento
+Route::get('ganancias/departamento/{id}', [\App\Http\Controllers\Api\GananciasController::class, 'departamento']);
