@@ -24,8 +24,8 @@ class Departamento extends Model
         'camas',
         'cuartos',
         'banos',
-        'imagenes',
-        'servicios',
+    'imagenes',
+    'servicios',
     ];
 
     public function getGoogleMapsUrlAttribute()
@@ -36,8 +36,8 @@ class Departamento extends Model
     }
 
     protected $casts = [
-        'imagenes' => 'array',
-        'servicios' => 'array',
+    'imagenes' => 'array',
+    'servicios' => 'array',
     ];
 
     public function empresaAdministradora()

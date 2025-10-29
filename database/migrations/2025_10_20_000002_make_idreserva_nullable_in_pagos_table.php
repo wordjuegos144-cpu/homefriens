@@ -8,14 +8,14 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('pagos', function (Blueprint $table) {
-            $table->integer('idReserva')->nullable()->change();
+            $table->unsignedBigInteger('idReserva')->nullable()->change();
         });
     }
 
     public function down(): void
     {
         Schema::table('pagos', function (Blueprint $table) {
-            $table->integer('idReserva')->nullable(false)->change();
+            $table->unsignedBigInteger('idReserva')->nullable(false)->change();
         });
     }
 };

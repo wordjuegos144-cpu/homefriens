@@ -17,6 +17,7 @@ class Reserva extends Model
         'fechaInicio',
         'fechaFin',
         'estado',
+        'overbooking',
         'costoPorNoche',
         'cantidadHuespedes',
         'cantidadNoches',
@@ -41,6 +42,23 @@ class Reserva extends Model
 
             // Compute commission and derived amounts when missing or zero
             try {
+                // Determine overbooking flag: if there exists at least one Confirmada
+                // reservation for same departamento with overlapping dates
+                if (isset($reserva->idDepartamento) && isset($reserva->fechaInicio) && isset($reserva->fechaFin)) {
+                    $existe = \App\Models\Reserva::where('idDepartamento', $reserva->idDepartamento)
+                        ->where('estado', 'Confirmada')
+                        ->where(function ($query) use ($reserva) {
+                            $query->where(function ($q) use ($reserva) {
+                                $q->where('fechaInicio', '<=', $reserva->fechaFin)
+                                  ->where('fechaFin', '>=', $reserva->fechaInicio);
+                            });
+                        })
+                        ->exists();
+                    $reserva->overbooking = $existe ? true : false;
+                } else {
+                    $reserva->overbooking = false;
+                }
+
                 if (empty($reserva->comisionCanal) || $reserva->comisionCanal == 0) {
                     $reserva->comisionCanal = \App\Services\ReservaService::calcularComisionCanal(
                         $reserva->idCanalReserva,
@@ -101,7 +119,7 @@ class Reserva extends Model
                 $canal = $reserva->canalReserva;
                 $formaPago = ($canal && strtolower($canal->nombre) === 'airbnb') ? 'Airtm' : 'QR';
                 $fechaPago = now();
-                $comprobante = ($formaPago === 'QR' && $reserva->estado === 'Pendiente') ? '' : null; // Si es pendiente y QR, comprobante vacío
+                // Create payment records (use NULL for comprobante when unknown)
                 \App\Models\Pago::create([
                     'idReserva' => $reserva->id,
                     'tipoPago' => 'Reserva',
@@ -109,7 +127,7 @@ class Reserva extends Model
                     'estadoPago' => 'Pendiente',
                     'formaPago' => $formaPago,
                     'fechaPago' => $fechaPago,
-                    'comprobante' => '', // Valor por defecto
+                    'comprobante' => null,
                 ]);
 
                 // Registro de Pago: Deposito (solo si canal != Airbnb y canal != Booking)
@@ -121,30 +139,61 @@ class Reserva extends Model
                         'estadoPago' => 'Pendiente',
                         'formaPago' => 'QR',
                         'fechaPago' => $fechaPago,
-                        'comprobante' => '', // Valor por defecto
+                        'comprobante' => null,
                     ]);
                 }
+            }
+
+            // Central creation of Devolucion for any creation path (API, Filament, etc.)
+            try {
+                if ($reserva->montoGarantia > 0) {
+                    $existe = \App\Models\Devolucion::where('idReserva', $reserva->id)->exists();
+                    if (!$existe) {
+                        \App\Models\Devolucion::create([
+                            'idReserva' => $reserva->id,
+                            'monto' => $reserva->montoGarantia,
+                            'fechaDevolucion' => $reserva->fechaFin,
+                            'estadoPago' => 'Pendiente',
+                            'comprobante' => null,
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                try { \Illuminate\Support\Facades\Log::error('Reserva created hook failed to create Devolucion', ['reserva_id' => $reserva->id ?? null, 'error' => $e->getMessage()]); } catch (\Throwable $_) {}
             }
         });
         static::updated(function ($reserva) {
             $limpieza = \App\Models\Limpieza::where('reserva_id', $reserva->id)->first();
             if ($reserva->isDirty('estado')) {
+                // When reservation becomes Confirmed, ensure the cleaning is Programada
                 if ($reserva->estado === 'Confirmada') {
-                    if (!$limpieza) {
+                    if ($limpieza) {
+                        // If a limpieza exists and is Pending, move it to Programada
+                        if ($limpieza->estado === 'Pendiente') {
+                            $limpieza->estado = 'Programada';
+                            $limpieza->save();
+                        }
+                        // If it was Cancelada, also open it back to Programada
+                        if ($limpieza->estado === 'Cancelada') {
+                            $limpieza->estado = 'Programada';
+                            $limpieza->save();
+                        }
+                    } else {
+                        // No limpieza exists yet: create one already Programada
                         \App\Models\Limpieza::create([
                             'reserva_id' => $reserva->id,
                             'fecha_programada' => $reserva->fechaFin,
                             'hora_programada' => '14:00:00',
                             'monto' => $reserva->montoLimpieza,
-                            'estado' => 'Pendiente',
+                            'estado' => 'Programada',
                         ]);
-                    } elseif ($limpieza->estado === 'Cancelada') {
-                        $limpieza->estado = 'Programada';
+                    }
+                } else {
+                    // If reservation no longer confirmed, and a cleaning is Programada, cancel it
+                    if ($limpieza && $limpieza->estado === 'Programada' && $reserva->estado !== 'Confirmada') {
+                        $limpieza->estado = 'Cancelada';
                         $limpieza->save();
                     }
-                } elseif ($limpieza && $limpieza->estado === 'Programada' && $reserva->estado !== 'Confirmada') {
-                    $limpieza->estado = 'Cancelada';
-                    $limpieza->save();
                 }
             }
         });
