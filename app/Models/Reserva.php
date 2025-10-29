@@ -9,7 +9,6 @@ use Stancl\Tenancy\Database\Concerns\BelongsToTenant;
 class Reserva extends Model
 {
     use HasFactory, BelongsToTenant;
-
     protected $fillable = [
         'idDepartamento',
         'idHuesped',
@@ -17,7 +16,6 @@ class Reserva extends Model
         'fechaInicio',
         'fechaFin',
         'estado',
-        'overbooking',
         'costoPorNoche',
         'cantidadHuespedes',
         'cantidadNoches',
@@ -42,23 +40,6 @@ class Reserva extends Model
 
             // Compute commission and derived amounts when missing or zero
             try {
-                // Determine overbooking flag: if there exists at least one Confirmada
-                // reservation for same departamento with overlapping dates
-                if (isset($reserva->idDepartamento) && isset($reserva->fechaInicio) && isset($reserva->fechaFin)) {
-                    $existe = \App\Models\Reserva::where('idDepartamento', $reserva->idDepartamento)
-                        ->where('estado', 'Confirmada')
-                        ->where(function ($query) use ($reserva) {
-                            $query->where(function ($q) use ($reserva) {
-                                $q->where('fechaInicio', '<=', $reserva->fechaFin)
-                                  ->where('fechaFin', '>=', $reserva->fechaInicio);
-                            });
-                        })
-                        ->exists();
-                    $reserva->overbooking = $existe ? true : false;
-                } else {
-                    $reserva->overbooking = false;
-                }
-
                 if (empty($reserva->comisionCanal) || $reserva->comisionCanal == 0) {
                     $reserva->comisionCanal = \App\Services\ReservaService::calcularComisionCanal(
                         $reserva->idCanalReserva,
@@ -119,7 +100,7 @@ class Reserva extends Model
                 $canal = $reserva->canalReserva;
                 $formaPago = ($canal && strtolower($canal->nombre) === 'airbnb') ? 'Airtm' : 'QR';
                 $fechaPago = now();
-                // Create payment records (use NULL for comprobante when unknown)
+                $comprobante = ($formaPago === 'QR' && $reserva->estado === 'Pendiente') ? '' : null; // Si es pendiente y QR, comprobante vacío
                 \App\Models\Pago::create([
                     'idReserva' => $reserva->id,
                     'tipoPago' => 'Reserva',
@@ -127,7 +108,7 @@ class Reserva extends Model
                     'estadoPago' => 'Pendiente',
                     'formaPago' => $formaPago,
                     'fechaPago' => $fechaPago,
-                    'comprobante' => null,
+                    'comprobante' => '', // Valor por defecto
                 ]);
 
                 // Registro de Pago: Deposito (solo si canal != Airbnb y canal != Booking)
@@ -139,27 +120,9 @@ class Reserva extends Model
                         'estadoPago' => 'Pendiente',
                         'formaPago' => 'QR',
                         'fechaPago' => $fechaPago,
-                        'comprobante' => null,
+                        'comprobante' => '', // Valor por defecto
                     ]);
                 }
-            }
-
-            // Central creation of Devolucion for any creation path (API, Filament, etc.)
-            try {
-                if ($reserva->montoGarantia > 0) {
-                    $existe = \App\Models\Devolucion::where('idReserva', $reserva->id)->exists();
-                    if (!$existe) {
-                        \App\Models\Devolucion::create([
-                            'idReserva' => $reserva->id,
-                            'monto' => $reserva->montoGarantia,
-                            'fechaDevolucion' => $reserva->fechaFin,
-                            'estadoPago' => 'Pendiente',
-                            'comprobante' => null,
-                        ]);
-                    }
-                }
-            } catch (\Throwable $e) {
-                try { \Illuminate\Support\Facades\Log::error('Reserva created hook failed to create Devolucion', ['reserva_id' => $reserva->id ?? null, 'error' => $e->getMessage()]); } catch (\Throwable $_) {}
             }
         });
         static::updated(function ($reserva) {

@@ -12,7 +12,17 @@ class CreateReserva extends CreateRecord
 
     protected function afterCreate(): void
     {
-        // Devolución ahora se crea centralmente en el modelo Reserva (hook created)
-        // para evitar duplicidades entre distintos flujos (API, Filament, etc.).
+        $reserva = $this->record;
+        
+        // Solo crear devolución si hay garantía (la limpieza se crea automáticamente en el modelo)
+        if ($reserva->montoGarantia > 0) {
+            \App\Models\Devolucion::create([
+                'idReserva' => $reserva->id,
+                'monto' => $reserva->montoGarantia,
+                'fechaDevolucion' => $reserva->fechaFin, // Puedes ajustar la lógica de fecha si es necesario
+                'estadoPago' => 'Pendiente',
+                'comprobante' => null,
+            ]);
+        }
     }
 }
