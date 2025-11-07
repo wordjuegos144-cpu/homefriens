@@ -38,20 +38,22 @@ class ReservaService
     }
 
     /**
-     * Calcula el monto de la reserva (total - comisión canal).
+     * Calcula el monto de la reserva según la fórmula:
+     * montoReserva = (cantidadNoches × costoPorNoche) + montoGarantia - descuentoAplicado - comisionCanal
      */
-    public static function calcularMontoReserva($costoPorNoche, $cantidadNoches, $comision): float
+    public static function calcularMontoReserva($costoPorNoche, $cantidadNoches, $comision, $montoGarantia = 0, $descuentoAplicado = 0): float
     {
         if (!$costoPorNoche || !$cantidadNoches) {
             return 0;
         }
-    $total = (float) $costoPorNoche * (float) $cantidadNoches;
-        return $total - ($comision ?? 0);
+        $total = (float) $costoPorNoche * (float) $cantidadNoches;
+        $total += (float)($montoGarantia ?? 0); // Añadir garantía al total
+        return round($total - (float)($descuentoAplicado ?? 0) - (float)($comision ?? 0), 2);
     }
 
     /**
-     * Calcula el monto para la empresa administradora: montoReserva menos comisión del contrato vigente.
-     * Busca el contrato vigente para el departamento y la fecha de la reserva.
+     * Calcula el monto para la empresa administradora según la fórmula:
+     * montoEmpresaAdministradora = montoReserva × porcentaje de comisión
      */
     public static function calcularMontoEmpresaAdministradora($idDepartamento, $fechaReserva, $montoReserva)
     {
@@ -63,28 +65,30 @@ class ReservaService
             ->where('fechaFinContrato', '>=', $fechaReserva)
             ->first();
         if (!$contrato || !$contrato->comisionContrato) {
-            return $montoReserva;
+            return 0; // Si no hay contrato o comisión, la empresa no recibe comisión
         }
-    $comision = ((float) $montoReserva * (float) $contrato->comisionContrato) / 100;
-    return round($comision, 2);
+        $montoComision = ((float) $montoReserva * (float) $contrato->comisionContrato) / 100;
+        return round($montoComision, 2);
     }
 
     /**
-     * Calcula el monto para el propietario: montoReserva menos comisión del contrato vigente.
-     * Busca el contrato vigente para el departamento y la fecha de la reserva.
+     * Calcula el monto para el propietario según la fórmula:
+     * montoPropietario = montoBase - montoEmpresaAdministradora
+     * donde montoBase = total bruto - comisionCanal
+     * (la garantía NO se resta aquí porque se devuelve al huésped)
      */
-    public static function calcularMontoPropietario($idDepartamento, $fechaReserva, $montoReserva)
+    public static function calcularMontoPropietario($idDepartamento, $fechaReserva, $montoBase)
     {
-        if (!$idDepartamento || !$fechaReserva || !$montoReserva) {
+        if (!$idDepartamento || !$fechaReserva || $montoBase === null) {
             return 0;
         }
-        $contrato = \App\Models\Contrato::where('idDepartamento', $idDepartamento)
-            ->where('fechaInicioContrato', '<=', $fechaReserva)
-            ->where('fechaFinContrato', '>=', $fechaReserva)
-            ->first();
-    $comision = ($contrato && $contrato->comisionContrato) ? ((float) $montoReserva * (float) $contrato->comisionContrato) / 100 : 0;
-    $monto = (float) $montoReserva - $comision;
-        return round($monto, 2);
+
+        // Calculamos la comisión de la empresa administradora sobre el monto base
+        $montoEmpresaAdministradora = static::calcularMontoEmpresaAdministradora($idDepartamento, $fechaReserva, $montoBase);
+        
+        // El monto del propietario es el monto base menos la comisión de la empresa
+        $montoPropietario = round($montoBase - $montoEmpresaAdministradora, 2);
+        return $montoPropietario < 0 ? 0 : $montoPropietario;
     }
 
     /**

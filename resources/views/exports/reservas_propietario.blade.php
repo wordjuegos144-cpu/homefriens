@@ -35,44 +35,45 @@
             @php
                 $costoPorNoche = floatval($reserva->costoPorNoche ?? 0);
                 $cantidadNoches = intval($reserva->cantidadNoches ?? 0);
-                $bruto = $costoPorNoche * $cantidadNoches / 1000;
+                $bruto = $costoPorNoche * $cantidadNoches;
                 $totalBruto += $bruto;
-                $totalMontoReserva += floatval($reserva->montoReserva ?? 0) / 1000;
-                $totalMontoLimpieza += floatval($reserva->montoLimpieza ?? 0) / 1000;
-                $totalMontoGarantia += floatval($reserva->montoGarantia ?? 0) / 1000;
-                $totalMontoEmpresa += floatval($reserva->montoEmpresaAdministradora ?? 0) / 1000;
-                $totalMontoPropietario += floatval($reserva->montoPropietario ?? 0) / 1000;
+                $totalMontoReserva += floatval($reserva->montoReserva ?? 0);
+                $totalMontoLimpieza += floatval($reserva->montoLimpieza ?? 0);
+                $totalMontoGarantia += floatval($reserva->montoGarantia ?? 0);
+                $totalMontoEmpresa += floatval($reserva->montoEmpresaAdministradora ?? 0);
+                $totalMontoPropietario += floatval($reserva->montoPropietario ?? 0);
             @endphp
             <tr>
                 <td>{{ $reserva->id }}</td>
-                <td>{{ $reserva->departamento->nombreEdificio ?? '' }} - {{ $reserva->departamento->numero ?? '' }}</td>
-                <td>{{ $reserva->departamento->propietario->nombre ?? '' }}</td>
+                @php $dep = optional($reserva->departamento); $prop = optional($dep->propietario); @endphp
+                <td>{{ $dep->nombreEdificio ?? '' }} - {{ $dep->numero ?? '' }}</td>
+                <td>{{ $prop->nombre ?? '' }}</td>
                 <td>{{ $reserva->huesped->nombre ?? '' }}</td>
                 <td>{{ $reserva->fechaInicio }}</td>
                 <td>{{ $reserva->fechaFin }}</td>
                 <td>{{ $reserva->canalReserva->nombre ?? '' }}</td>
                 <td>{{ $reserva->estado }}</td>
-                <td>{{ number_format($costoPorNoche, 0, ',', '.') }}</td>
+                <td>{{ $costoPorNoche }}</td>
                 <td>{{ $reserva->cantidadHuespedes }}</td>
                 <td>{{ $cantidadNoches }}</td>
-                <td>{{ number_format(floatval($reserva->comisionCanal ?? 0), 3, ',', '.') }}</td>
-                <td>{{ number_format($bruto, 3, ',', '.') }}</td>
-                <td>{{ number_format(floatval($reserva->montoReserva ?? 0), 3, ',', '.') }}</td>
-                <td>{{ number_format(floatval($reserva->montoLimpieza ?? 0), 3, ',', '.') }}</td>
-                <td>{{ number_format(floatval($reserva->montoGarantia ?? 0), 3, ',', '.') }}</td>
-                <td>{{ number_format(floatval($reserva->montoEmpresaAdministradora ?? 0), 3, ',', '.') }}</td>
+                <td>{{ floatval($reserva->comisionCanal ?? 0) }}</td>
+                <td>{{ $bruto }}</td>
+                <td>{{ floatval($reserva->montoReserva ?? 0) }}</td>
+                <td>{{ floatval($reserva->montoLimpieza ?? 0) }}</td>
+                <td>{{ floatval($reserva->montoGarantia ?? 0) }}</td>
+                <td>{{ floatval($reserva->montoEmpresaAdministradora ?? 0) }}</td>
                 <td>{{ $reserva->pagos && $reserva->pagos->count() ? $reserva->pagos->first()->formaPago : '' }}</td>
-                <td>{{ number_format(floatval($reserva->montoPropietario ?? 0), 3, ',', '.') }}</td>
+                <td>{{ floatval($reserva->montoPropietario ?? 0) }}</td>
             </tr>
         @endforeach
         <tr>
             <td colspan="12"><strong>TOTALES</strong></td>
-            <td><strong>{{ number_format($totalBruto, 3, ',', '.') }}</strong></td>
-            <td><strong>{{ number_format($totalMontoReserva, 3, ',', '.') }}</strong></td>
-            <td><strong>{{ number_format($totalMontoLimpieza, 3, ',', '.') }}</strong></td>
-            <td><strong>{{ number_format($totalMontoGarantia, 3, ',', '.') }}</strong></td>
-            <td><strong>{{ number_format($totalMontoEmpresa, 3, ',', '.') }}</strong></td>
-            <td><strong>{{ number_format($totalMontoPropietario, 3, ',', '.') }}</strong></td>
+            <td><strong>{{ $totalBruto }}</strong></td>
+            <td><strong>{{ $totalMontoReserva }}</strong></td>
+            <td><strong>{{ $totalMontoLimpieza }}</strong></td>
+            <td><strong>{{ $totalMontoGarantia }}</strong></td>
+            <td><strong>{{ $totalMontoEmpresa }}</strong></td>
+            <td><strong>{{ $totalMontoPropietario }}</strong></td>
         </tr>
     </tbody>
 </table>

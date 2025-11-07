@@ -8,14 +8,18 @@ return new class extends Migration {
     public function up(): void
     {
         Schema::table('pagos', function (Blueprint $table) {
-            $table->integer('idReserva')->nullable()->change();
+            $table->dropForeign(['idReserva']);
+            $table->unsignedBigInteger('idReserva')->nullable()->change();
+            $table->foreign('idReserva')->references('id')->on('reservas')->onDelete('set null');
         });
     }
 
     public function down(): void
     {
         Schema::table('pagos', function (Blueprint $table) {
-            $table->integer('idReserva')->nullable(false)->change();
+            $table->dropForeign(['idReserva']);
+            $table->unsignedBigInteger('idReserva')->nullable(false)->change();
+            $table->foreign('idReserva')->references('id')->on('reservas')->onDelete('cascade');
         });
     }
 };

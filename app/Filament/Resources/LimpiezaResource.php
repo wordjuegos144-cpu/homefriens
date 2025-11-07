@@ -28,8 +28,10 @@ class LimpiezaResource extends Resource
                 Forms\Components\Select::make('reserva_id')
                     ->label('Reserva')
                     ->options(Reserva::all()->mapWithKeys(function($reserva) {
+                        $nombre = optional($reserva->departamento)->nombreEdificio ?? 'Departamento';
+                        $numero = optional($reserva->departamento)->numero ?? '-';
                         return [
-                            $reserva->id => $reserva->departamento->nombreEdificio . ' - Nro: ' . $reserva->departamento->numero . ' - ' . $reserva->fechaInicio . ' / ' . $reserva->fechaFin
+                            $reserva->id => $nombre . ' - Nro: ' . $numero . ' - ' . $reserva->fechaInicio . ' / ' . $reserva->fechaFin
                         ];
                     }))
                     ->searchable()
@@ -65,7 +67,10 @@ class LimpiezaResource extends Resource
                     ->label('Reserva')
                     ->formatStateUsing(function($state, $record) {
                         if ($record->reserva) {
-                            return $record->reserva->departamento->nombreEdificio . ' - Nro: ' . $record->reserva->departamento->numero . ' - ' . $record->reserva->fechaInicio . ' / ' . $record->reserva->fechaFin;
+                            $dep = optional(optional($record->reserva)->departamento);
+                            $nombre = $dep->nombreEdificio ?? 'Departamento';
+                            $numero = $dep->numero ?? '-';
+                            return $nombre . ' - Nro: ' . $numero . ' - ' . $record->reserva->fechaInicio . ' / ' . $record->reserva->fechaFin;
                         }
                         return $state;
                     })
@@ -78,6 +83,8 @@ class LimpiezaResource extends Resource
                     ->color(fn (string $state): string => match ($state) {
                         'Pendiente' => 'gray',
                         'Programada' => 'info',
+                        // backward-compat: some existing records used 'Programado'
+                        'Programado' => 'info',
                         'Cancelada' => 'danger',
                         'Finalizada' => 'success',
                     }),

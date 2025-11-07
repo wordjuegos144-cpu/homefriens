@@ -10,5 +10,5 @@ class EmpresaAdministradora extends Model
 {
     use HasFactory, BelongsToTenant;
 
-    protected $fillable = ['nombre'];
+    protected $fillable = ['nombre', 'comision'];
 }

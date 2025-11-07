@@ -19,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        \App\Models\MetaMensual::observe(\App\Observers\MetaMensualObserver::class);
+        \App\Models\Reserva::observe(\App\Observers\ReservaObserver::class);
+
         //
     }
 }

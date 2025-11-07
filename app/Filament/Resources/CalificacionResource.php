@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\CalificacionResource\Pages;
 use App\Filament\Resources\CalificacionResource\RelationManagers;
 use App\Models\Calificacion;
+use App\Models\Reserva;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -25,10 +26,39 @@ class CalificacionResource extends Resource
             ->schema([
                 Forms\Components\Select::make('idReserva')
                     ->label('Reserva')
-                    ->relationship('reserva', 'id')
+                    ->options(Reserva::all()->mapWithKeys(function ($r) {
+                        $nombre = optional($r->departamento)->nombreEdificio ?? 'Departamento';
+                        $numero = optional($r->departamento)->numero ?? '-';
+                        return [
+                            $r->id => $nombre . ' - Nro: ' . $numero . ' - ' . $r->fechaInicio . ' / ' . $r->fechaFin
+                        ];
+                    }))
+                    ->searchable()
+                    ->reactive()
                     ->required(),
+
+                Forms\Components\Placeholder::make('departamento')
+                    ->label('Departamento')
+                    ->content(function (callable $get) {
+                        $id = $get('idReserva');
+                        if (!$id) return '-';
+                        $res = Reserva::find($id);
+                        if (!$res || !$res->departamento) return '-';
+                        return $res->departamento->nombreEdificio . ' - Nro: ' . ($res->departamento->numero ?? '-');
+                    }),
+
+                Forms\Components\Placeholder::make('huesped')
+                    ->label('Huésped')
+                    ->content(function (callable $get) {
+                        $id = $get('idReserva');
+                        if (!$id) return '-';
+                        $res = Reserva::find($id);
+                        if (!$res || !$res->huesped) return '-';
+                        return $res->huesped->nombre . ' - ' . ($res->huesped->Whatsapp ?? '-');
+                    }),
+
                 Forms\Components\Select::make('valor')
-                    ->label('Valor')
+                    ->label('Calificación')
                     ->options([
                         1 => '1',
                         2 => '2',
@@ -37,12 +67,12 @@ class CalificacionResource extends Resource
                         5 => '5',
                     ])
                     ->required()
-                    ->reactive()
                     ->rules(['integer', 'between:1,5']),
-                Forms\Components\TextInput::make('comentario')
-                    ->label('Comentario')
-                    ->required()
-                    ->maxLength(50),
+
+                Forms\Components\Textarea::make('comentario')
+                    ->label('Reseña')
+                    ->rows(3)
+                    ->nullable(),
                 // Fecha se asigna automáticamente al crear la calificación
             ]);
     }
@@ -52,10 +82,17 @@ class CalificacionResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('id')->label('ID'),
-                Tables\Columns\TextColumn::make('reserva.id')->label('Reserva'),
-                Tables\Columns\TextColumn::make('valor')->label('Valor'),
-                Tables\Columns\TextColumn::make('comentario')->label('Comentario'),
-                Tables\Columns\TextColumn::make('fecha')->label('Fecha'),
+                Tables\Columns\TextColumn::make('reserva.departamento.nombreEdificio')
+                    ->label('Departamento')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('reserva.huesped.nombre')
+                    ->label('Huésped')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('valor')->label('Calificación')->sortable(),
+                Tables\Columns\TextColumn::make('comentario')->limit(50)->label('Reseña'),
+                Tables\Columns\TextColumn::make('fecha')->label('Fecha')->dateTime()->sortable(),
             ])
             ->filters([
                 Tables\Filters\Filter::make('valor')

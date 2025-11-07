@@ -14,6 +14,11 @@ class Propietario extends Model
         'email',
         'telefono',
         'direccion',
+        'password',
+    ];
+
+    protected $hidden = [
+        'password',
     ];
 
     // Un propietario puede tener muchos departamentos

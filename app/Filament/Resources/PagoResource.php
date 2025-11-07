@@ -39,7 +39,20 @@ class PagoResource extends Resource
                     ->relationship('limpieza', 'id')
                     ->visible(fn(callable $get) => $get('tipoPago') === 'Limpieza')
                     ->required(fn(callable $get) => $get('tipoPago') === 'Limpieza')
-                    ->reactive(),
+                    ->reactive()
+                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                        // Si el tipo de pago es Limpieza, rellenar el monto con el valor de la limpieza seleccionada
+                        try {
+                            if ($get('tipoPago') === 'Limpieza' && $state) {
+                                $limpieza = \App\Models\Limpieza::find($state);
+                                if ($limpieza && isset($limpieza->monto)) {
+                                    $set('monto', (float) $limpieza->monto);
+                                }
+                            }
+                        } catch (\Throwable $_) {
+                            // No bloquear la UI en caso de error
+                        }
+                    }),
                 Forms\Components\Select::make('idReserva')
                     ->label('Reserva')
                     ->relationship('reserva', 'id')
@@ -74,8 +87,8 @@ class PagoResource extends Resource
                     ->label('Comprobante')
                     ->disk('public')
                     ->directory('comprobantes')
-                    ->image()
                     ->preserveFilenames()
+                    ->acceptedFileTypes(['image/*', 'application/pdf'])
                     ->nullable(),
             ]);
     }

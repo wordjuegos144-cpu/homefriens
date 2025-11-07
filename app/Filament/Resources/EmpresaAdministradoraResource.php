@@ -30,6 +30,16 @@ class EmpresaAdministradoraResource extends Resource
                     ->label('Nombre')
                     ->required()
                     ->maxLength(100),
+                Forms\Components\TextInput::make('comision')
+                    ->label('Comisión (%)')
+                    ->required()
+                    ->numeric()
+                    ->default(10.00)
+                    ->suffix('%')
+                    ->hint('Porcentaje de comisión que cobra la empresa')
+                    ->minValue(0)
+                    ->maxValue(100)
+                    ->step(0.01),
             ]);
     }
 
@@ -38,7 +48,19 @@ class EmpresaAdministradoraResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('idEmpresa')->label('ID'),
-                Tables\Columns\TextColumn::make('nombre')->label('Nombre'),
+                Tables\Columns\TextColumn::make('nombre')
+                    ->label('Nombre')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('comision')
+                    ->label('Comisión')
+                    ->numeric(
+                        decimalPlaces: 2,
+                        decimalSeparator: '.',
+                        thousandsSeparator: ','
+                    )
+                    ->suffix('%')
+                    ->sortable(),
             ])
             ->filters([
                 //

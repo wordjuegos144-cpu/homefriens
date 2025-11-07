@@ -24,12 +24,28 @@ class PropietarioResource extends Resource
         return $form
             ->schema([
                 Forms\Components\TextInput::make('nombre')
-                    ->required(),
+                    ->required()
+                    ->maxLength(255),
                 Forms\Components\TextInput::make('email')
-                    ->email(),
+                    ->email()
+                    ->maxLength(255),
                 Forms\Components\TextInput::make('telefono')
-                    ->tel(),
-                Forms\Components\TextInput::make('direccion'),
+                    ->tel()
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('direccion')
+                    ->maxLength(255),
+                Forms\Components\TextInput::make('password')
+                    ->password()
+                    ->dehydrateStateUsing(fn ($state) => !empty($state) ? bcrypt($state) : null)
+                    ->label('Contraseña')
+                    ->same('passwordConfirmation')
+                    ->dehydrated(fn ($state) => filled($state))
+                    ->required(fn (string $context): bool => $context === 'create'),
+                Forms\Components\TextInput::make('passwordConfirmation')
+                    ->password()
+                    ->label('Confirmar Contraseña')
+                    ->required(fn (string $context): bool => $context === 'create')
+                    ->dehydrated(false),
             ]);
     }
 

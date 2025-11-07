@@ -11,7 +11,8 @@ class Reserva extends Model
     use HasFactory, BelongsToTenant;
 
     protected $fillable = [
-        'idDepartamento',
+            'idDepartamento',
+            'overbooking',
         'idHuesped',
         'idCanalReserva',
         'fechaInicio',
@@ -33,6 +34,18 @@ class Reserva extends Model
     {
         // Ensure computed monetary fields are populated for any create path
         static::creating(function ($reserva) {
+                // Verificar overbooking
+                $reserva->overbooking = static::verificarOverbooking(
+                    $reserva->idDepartamento,
+                    $reserva->fechaInicio,
+                    $reserva->fechaFin
+                );
+
+            // Ensure cantidadHuespedes has a sensible default when creating directly via model
+            if (!isset($reserva->cantidadHuespedes) || $reserva->cantidadHuespedes === null) {
+                $reserva->cantidadHuespedes = 1;
+            }
+
             // Normalize basic numeric fields to avoid string arithmetic issues
             $reserva->costoPorNoche = isset($reserva->costoPorNoche) ? (float) $reserva->costoPorNoche : 0;
             $reserva->cantidadNoches = isset($reserva->cantidadNoches) ? (int) $reserva->cantidadNoches : 0;
@@ -49,11 +62,20 @@ class Reserva extends Model
                     );
                 }
 
+                // Primero calculamos el total bruto (noches × costo)
+                $totalBruto = $reserva->costoPorNoche * $reserva->cantidadNoches;
+
+                // Calculamos el monto base (total bruto - comisión canal)
+                // Nota: NO restamos la garantía aquí porque la garantía se devuelve al huésped
+                $montoBase = $totalBruto - ($reserva->comisionCanal ?? 0);
+
                 if (empty($reserva->montoReserva) || $reserva->montoReserva == 0) {
                     $reserva->montoReserva = \App\Services\ReservaService::calcularMontoReserva(
                         $reserva->costoPorNoche,
                         $reserva->cantidadNoches,
-                        $reserva->comisionCanal
+                        $reserva->comisionCanal,
+                        $reserva->montoGarantia,
+                        $reserva->descuentoAplicado ?? 0
                     );
                 }
 
@@ -64,7 +86,7 @@ class Reserva extends Model
                     $reserva->montoEmpresaAdministradora = \App\Services\ReservaService::calcularMontoEmpresaAdministradora(
                         $reserva->idDepartamento,
                         $reserva->fechaInicio,
-                        $reserva->montoReserva
+                        $montoBase // Usamos el monto base (sin garantía) para calcular la comisión
                     );
                 }
 
@@ -72,7 +94,7 @@ class Reserva extends Model
                     $reserva->montoPropietario = \App\Services\ReservaService::calcularMontoPropietario(
                         $reserva->idDepartamento,
                         $reserva->fechaInicio,
-                        $reserva->montoReserva
+                        $montoBase // Usamos el monto base (sin garantía) para calcular el monto del propietario
                     );
                 }
             } catch (\Throwable $e) {
@@ -88,20 +110,26 @@ class Reserva extends Model
             }
         });
         static::created(function ($reserva) {
-            if ($reserva->estado === 'Confirmada') {
+            // Create a limpieza automatically on reservation creation
+            // - If reserva is 'Pendiente' => create limpieza with estado 'Pendiente'
+            // - If reserva is 'Confirmada' => create limpieza with estado 'Programada'
+            if (in_array($reserva->estado, ['Pendiente', 'Confirmada'])) {
+                $limpiezaEstado = $reserva->estado === 'Confirmada' ? 'Programada' : 'Pendiente';
                 \App\Models\Limpieza::create([
                     'reserva_id' => $reserva->id,
                     'fecha_programada' => $reserva->fechaFin,
                     'hora_programada' => '14:00:00',
                     'monto' => $reserva->montoLimpieza,
-                    'estado' => 'Pendiente',
+                    'estado' => $limpiezaEstado,
                 ]);
+            }
 
+            // Keep existing pago logic only for confirmed reservations
+            if ($reserva->estado === 'Confirmada') {
                 // Registro de Pago: Garantía
                 $canal = $reserva->canalReserva;
                 $formaPago = ($canal && strtolower($canal->nombre) === 'airbnb') ? 'Airtm' : 'QR';
                 $fechaPago = now();
-                $comprobante = ($formaPago === 'QR' && $reserva->estado === 'Pendiente') ? '' : null; // Si es pendiente y QR, comprobante vacío
                 \App\Models\Pago::create([
                     'idReserva' => $reserva->id,
                     'tipoPago' => 'Reserva',
@@ -129,6 +157,7 @@ class Reserva extends Model
         static::updated(function ($reserva) {
             $limpieza = \App\Models\Limpieza::where('reserva_id', $reserva->id)->first();
             if ($reserva->isDirty('estado')) {
+                // If reservation becomes confirmed, ensure limpieza is created/updated to Programada
                 if ($reserva->estado === 'Confirmada') {
                     if (!$limpieza) {
                         \App\Models\Limpieza::create([
@@ -136,15 +165,20 @@ class Reserva extends Model
                             'fecha_programada' => $reserva->fechaFin,
                             'hora_programada' => '14:00:00',
                             'monto' => $reserva->montoLimpieza,
-                            'estado' => 'Pendiente',
+                            'estado' => 'Programada',
                         ]);
-                    } elseif ($limpieza->estado === 'Cancelada') {
+                    } else {
                         $limpieza->estado = 'Programada';
+                        $limpieza->fecha_programada = $reserva->fechaFin;
+                        $limpieza->monto = $reserva->montoLimpieza;
                         $limpieza->save();
                     }
-                } elseif ($limpieza && $limpieza->estado === 'Programada' && $reserva->estado !== 'Confirmada') {
-                    $limpieza->estado = 'Cancelada';
-                    $limpieza->save();
+                } else {
+                    // If reservation is no longer confirmed, cancel any programadas
+                    if ($limpieza && $limpieza->estado === 'Programada') {
+                        $limpieza->estado = 'Cancelada';
+                        $limpieza->save();
+                    }
                 }
             }
         });
@@ -171,5 +205,21 @@ class Reserva extends Model
     {
         return $this->hasMany(\App\Models\Pago::class, 'idReserva');
     }
+
+        /**
+         * Verifica si hay overbooking para las fechas dadas
+         */
+        public static function verificarOverbooking($idDepartamento, $fechaInicio, $fechaFin): bool
+        {
+            return static::where('idDepartamento', $idDepartamento)
+                ->where('estado', 'Confirmada')
+                ->where(function($query) use ($fechaInicio, $fechaFin) {
+                    $query->where(function($q) use ($fechaInicio, $fechaFin) {
+                        $q->where('fechaInicio', '<=', $fechaFin)
+                          ->where('fechaFin', '>=', $fechaInicio);
+                    });
+                })
+                ->exists();
+        }
 }
 
